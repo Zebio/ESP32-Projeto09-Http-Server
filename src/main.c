@@ -1,8 +1,6 @@
 #include <esp_http_server.h>
 #include <stdio.h>
 #include <esp_wifi.h>
-#include <esp_wifi_types.h>
-
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -12,13 +10,7 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 
-#include "lwip/err.h"
-#include "lwip/sys.h"
 #include <tcpip_adapter.h>
-
-
-#include "lwip/err.h"
-#include "lwip/sys.h"
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
@@ -27,105 +19,119 @@
 #define WIFI_FAIL_BIT      BIT1
 
 
-#define EXAMPLE_ESP_WIFI_SSID      "ssid"
-#define EXAMPLE_ESP_WIFI_PASS      "senha"
+#define EXAMPLE_ESP_WIFI_SSID      "tira_o_zoio"
+#define EXAMPLE_ESP_WIFI_PASS      "jabuticaba"
 #define EXAMPLE_ESP_MAXIMUM_RETRY  10
+
+/*----------------------Mapeamento de Hardware----------------------*/
+#define led1 32
+#define led2 33
+
+
+/*---------------------Variáveis GLobais    ----------------------*/
+bool led1_status = false;
+bool led2_status = false;
+
 
 static EventGroupHandle_t s_wifi_event_group;
 
 tcpip_adapter_ip_info_t ipInfo; 
 char str[256];
 
-static const char *TAG = "example";
+/*---------------------Variáveis para Armazenar código HTML ----------------------*/
+const char *index_html=       "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><link rel=\"icon\" href=\"data:,\"></head><link rel=\"icon\" href=\"data:,\"><title>Projeto05 - Automacao com ESP32</title><style> html{color: #ffffff;font-family: Verdana;text-align: center;background-color: #272727fd}.botao_on{color: #ffffff;padding: 15px 25px;font-size: 30px;margin: 2px;font-family: Tahoma;background-color: #313891a6;}.botao_off{color: #ffffff;padding: 15px 25px;font-size: 30px;margin: 2px;font-family: Tahoma;background-color: #7c7c7ca6;}</style><body><h2>Controle de Saidas</h2><p>";
+const char *led1_ligado=      "<a href=\"/led1\"><button class=\"botao_on\" > LED 1   </button></a></p>";
+const char *led1_desligado=   "<a href=\"/led1\"><button class=\"botao_off\" > LED 1   </button></a></p>";
+const char *led2_ligado=      "<p><a href=\"/led2\"><button class=\"botao_on\" > LED 2   </button></a></p>";
+const char *led2_desligado=   "<p><a href=\"/led2\"><button class=\"botao_off\" > LED 2   </button></a></p>";
+const char *html_final=       "</body></html>\n";
 
-const char* ssid="tira_o_zoio";
-const char* pass="jabuticaba";
+
+static const char *TAG = "ESP";
 
 static int s_retry_num = 0;
 
-static esp_err_t hello_get_handler(httpd_req_t *req)
+
+void print_webpage(httpd_req_t *req)
 {
-    char*  buf;
-    size_t buf_len;
+    char buffer[760] =""; 
+    strcat(buffer, index_html);
 
-    /* Get header value string length and allocate memory for length + 1,
-     * extra byte for null termination */
-    buf_len = httpd_req_get_hdr_value_len(req, "Host") + 1;
-    if (buf_len > 1) {
-        buf = malloc(buf_len);
-        /* Copy null terminated value string into buffer */
-        if (httpd_req_get_hdr_value_str(req, "Host", buf, buf_len) == ESP_OK) {
-            printf(TAG, "Found header => Host: %s", buf);
-        }
-        free(buf);
-    }
+    if (led1_status)
+        strcat(buffer, led1_ligado);
+    else
+        strcat(buffer, led1_desligado);
 
-    buf_len = httpd_req_get_hdr_value_len(req, "Test-Header-2") + 1;
-    if (buf_len > 1) {
-        buf = malloc(buf_len);
-        if (httpd_req_get_hdr_value_str(req, "Test-Header-2", buf, buf_len) == ESP_OK) {
-            printf(TAG, "Found header => Test-Header-2: %s", buf);
-        }
-        free(buf);
-    }
+    if (led2_status)
+        strcat(buffer, led2_ligado);
+    else
+        strcat(buffer, led2_desligado);  
 
-    buf_len = httpd_req_get_hdr_value_len(req, "Test-Header-1") + 1;
-    if (buf_len > 1) {
-        buf = malloc(buf_len);
-        if (httpd_req_get_hdr_value_str(req, "Test-Header-1", buf, buf_len) == ESP_OK) {
-            printf(TAG, "Found header => Test-Header-1: %s", buf);
-        }
-        free(buf);
-    }
+    strcat(buffer, html_final);  
 
-    /* Read URL query string length and allocate memory for length + 1,
-     * extra byte for null termination */
-    buf_len = httpd_req_get_url_query_len(req) + 1;
-    if (buf_len > 1) {
-        buf = malloc(buf_len);
-        if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-            printf(TAG, "Found URL query => %s", buf);
-            char param[32];
-            /* Get value of expected key from query string */
-            if (httpd_query_key_value(buf, "query1", param, sizeof(param)) == ESP_OK) {
-                printf(TAG, "Found URL query parameter => query1=%s", param);
-            }
-            if (httpd_query_key_value(buf, "query3", param, sizeof(param)) == ESP_OK) {
-                printf(TAG, "Found URL query parameter => query3=%s", param);
-            }
-            if (httpd_query_key_value(buf, "query2", param, sizeof(param)) == ESP_OK) {
-                printf(TAG, "Found URL query parameter => query2=%s", param);
-            }
-        }
-        free(buf);
-    }
+    httpd_resp_send(req, buffer, strlen(buffer));
 
-    /* Set some custom headers */
-    httpd_resp_set_hdr(req, "Custom-Header-1", "Custom-Value-1");
-    httpd_resp_set_hdr(req, "Custom-Header-2", "Custom-Value-2");
+}
 
-    /* Send response with custom headers and body set as the
-     * string passed in user context*/
-    const char* resp_str = (const char*) req->user_ctx;
-    httpd_resp_send(req, resp_str, strlen(resp_str));
 
-    /* After sending the HTTP response the old HTTP request
-     * headers are lost. Check if HTTP request headers can be read now. */
-    if (httpd_req_get_hdr_value_len(req, "Host") == 0) {
-        printf(TAG, "Request headers lost");
-    }
+//handler do Get da Página Principal
+static esp_err_t main_page_get_handler(httpd_req_t *req)
+{
+    //imprime a página
+    print_webpage(req);
+    //retorna OK
+    return ESP_OK;
+}
+
+//a declaração da página Principal
+static const httpd_uri_t main_page = {
+    .uri       = "/",
+    .method    = HTTP_GET,
+    .handler   = main_page_get_handler,
+    .user_ctx  = NULL
+};
+
+//handler do Get do Led1. Altera o Valor do LED e imprime a página novamente
+static esp_err_t led1_get_handler(httpd_req_t *req)
+{
+    led1_status= !led1_status; //Inverte o Estado do Led 1
+    //Envia a resposta na nova Página
+     print_webpage(req);
+
+    //Retorna OK
+    return ESP_OK;
+}
+
+//a declaração da página do Led1
+static const httpd_uri_t led1_get = {
+    .uri       = "/led1",
+    .method    = HTTP_GET,
+    .handler   = led1_get_handler,
+    /* Let's pass response string in user
+     * context to demonstrate it's usage */
+    .user_ctx  = NULL
+};
+
+
+//handler do Get do Led1. Altera o Valor do LED e imprime a página novamente
+static esp_err_t led2_get_handler(httpd_req_t *req)
+{
+    led2_status= !led2_status; //Inverte o Estado do Led 2
+    //Envia a resposta na nova Página
+     print_webpage(req);
+
+    //Retorna OK
     return ESP_OK;
 }
 
 
-static const httpd_uri_t hello = {
-    .uri       = "/hello",
+//a declaração da página do Led2
+static const httpd_uri_t led2_get = {
+    .uri       = "/led2",
     .method    = HTTP_GET,
-    .handler   = hello_get_handler,
-    /* Let's pass response string in user
-     * context to demonstrate it's usage */
-    .user_ctx  = "<!DOCTYPE html><html><head><title>Projeto05 - Automação com ESP32</title><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\" /></head><body><h2>Controle de Saídas</h2><!--Para botão ligado:<p><a href=\"/led1\"><button class=\"botao_on\" > LED 1   </button></a></p>--><p><a href=\"/led1\"><button class=\"botao_off\"> LED 1   </button></a></p><!--Para botão ligado:<p><a href=\"/led2\"><button class=\"botao_on\" > LED 2   </button></a></p>--><p><a href=\"/led2\"><button class=\"botao_off\"> LED 2   </button></a></p></body></html>"};
-
+    .handler   = led2_get_handler,
+    .user_ctx  = NULL
+};
 
 static httpd_handle_t start_webserver(void)
 {
@@ -134,36 +140,22 @@ static httpd_handle_t start_webserver(void)
     config.lru_purge_enable = true;
 
     // Start the httpd server
-    printf(TAG, "Starting server on port: '%d'", config.server_port);
+    printf("Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
         // Set URI handlers
-        printf(TAG, "Registering URI handlers");
-        httpd_register_uri_handler(server, &hello);
+        printf("Registering URI handlers");
+        httpd_register_uri_handler(server, &main_page);
+        httpd_register_uri_handler(server, &led1_get);
+        httpd_register_uri_handler(server, &led2_get);
         return server;
     }
 
-    printf(TAG, "Error starting server!");
+    printf("Error starting server!");
     return NULL;
 }
 
-static void stop_webserver(httpd_handle_t server)
-{
-    // Stop the httpd server
-    httpd_stop(server);
-}
 
 
-
-static wifi_config_t config ={
-    .sta={.ssid="tira_o_zoio",
-    .password="jabuticaba",
-    .scan_method=WIFI_FAST_SCAN,
-    .bssid_set=false,
-    .bssid="000000",
-    .channel=0,
-    .listen_interval=0,
-    .sort_method=WIFI_CONNECT_AP_BY_SIGNAL}
-};
 
 static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
@@ -273,7 +265,7 @@ void app_main()
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
 
-    static httpd_handle_t server = NULL;
+    static httpd_handle_t server =NULL;
     /* Start the server for the first time */
     server = start_webserver();
 }
