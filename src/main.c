@@ -10,6 +10,7 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "driver/gpio.h"
 
 
 /*------------------------Definições de Projeto-----------------------*/
@@ -27,8 +28,10 @@ tentar ao se conectar à rede Wireless*/
 #define EXAMPLE_ESP_MAXIMUM_RETRY  10
 
 /*----------------------Mapeamento de Hardware----------------------*/
-#define led1 32
-#define led2 33
+#define led1    32
+#define led2    33
+#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<led1  ) | (1ULL<<led2))
+
 
 
 /*---------------------Variáveis GLobais----------------------*/
@@ -125,6 +128,20 @@ void app_main()
     /*Nos conectamos ao Wireless*/
     wifi_init_sta();
 
+    gpio_config_t io_conf;
+    //disable interrupt
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    //set as output mode
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    //bit mask of the pins that you want to set,e.g.GPIO18/19
+    io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
+    //disable pull-down mode
+    io_conf.pull_down_en = 0;
+    //disable pull-up mode
+    io_conf.pull_up_en = 0;
+    //configure GPIO with the given settings
+    gpio_config(&io_conf);
+
 
     /* Inicia o Server pela primeira vez */
     server = start_webserver();
@@ -174,6 +191,8 @@ static esp_err_t led1_get_handler(httpd_req_t *req)
     //Envia a resposta na nova Página
      print_webpage(req);
 
+    gpio_set_level(led1, led1_status);
+
     //Retorna OK
     return ESP_OK;
 }
@@ -185,7 +204,9 @@ static esp_err_t led2_get_handler(httpd_req_t *req)
 {
     led2_status= !led2_status; //Inverte o Estado do Led 2
     //Envia a resposta na nova Página
-     print_webpage(req);
+    print_webpage(req);
+
+    gpio_set_level(led2, led2_status);
 
     //Retorna OK
     return ESP_OK;
