@@ -2,9 +2,9 @@
 
 ### Resumo
 
-Este projeto é extremamente parecido com o projeto 06 , a única diferença é que ele é escrito em linguagem C
+Este projeto é extremamente parecido com o [Projeto 06](https://github.com/Zebio/ESP32-Projeto06-Web-Server) , a única diferença é que seu software foi feito
 
-Usando o Framework nativo do ESP32, o ESP SDK IDF ao invés do Framework Arduíno do projeto 06.
+Usando o Framework nativo do ESP32, o ESP SDK IDF usando as funções nativas escritas em linguagem C, ao invés do Framework Arduíno usado no projeto 06.
 
 Este projeto implementa um server que pode ser usado para automação, seja industrial ou residencial
 
