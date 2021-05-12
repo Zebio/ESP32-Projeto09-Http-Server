@@ -57,7 +57,7 @@ const char *html_final=       "</body></html>\n";
 
 static const char *TAG = "ESP";
 
-static int s_retry_num = 0;
+static int numero_tentativa_de_conexao_wifi = 0;
 
 
 /*-------------Declaração das Funções---------------------*/
@@ -77,7 +77,7 @@ static esp_err_t led2_get_handler(httpd_req_t *req);
 //Cria o Server, Faz as configurações Padrão e Inicia os URI Handlers para os GETs
 static httpd_handle_t start_webserver(void);
 
-//Lida com os Eventos da rede Wireless(reconexão, IP recebido)
+//Lida com os Eventos da rede Wireless(reconexão, IPs, etc)
 static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data);
 
@@ -242,9 +242,9 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_num < 5) {
+        if (numero_tentativa_de_conexao_wifi < 5) {
             esp_wifi_connect();
-            s_retry_num++;
+            numero_tentativa_de_conexao_wifi++;
             ESP_LOGI(TAG, "retry to connect to the AP");
         } else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
@@ -253,7 +253,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_num = 0;
+        numero_tentativa_de_conexao_wifi = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
